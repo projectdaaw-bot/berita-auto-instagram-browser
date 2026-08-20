@@ -33,18 +33,86 @@ export async function verifyAccount(page, expected='berita.auto') {
 }
 
 export async function openStoryComposer(page) {
-  let create = await firstVisible(page, SELECTORS.create);
+  // PENTING:
+  // Jangan ubah viewport.
+  // Gunakan tampilan desktop Chrome/CDP yang sudah terbuka.
+
+  let create = await firstVisible(page, [
+    'button:has-text("Create")',
+    '[aria-label="Create"]',
+    'a[href="/create/select/"]',
+    'text=Create'
+  ]);
+
   if (!create) {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1800);
-    create = await firstVisible(page, SELECTORS.create);
+    await page.screenshot({
+      path: 'tmp/screenshots/02-create-not-found.png',
+      fullPage: false
+    });
+
+    throw new Error('CREATE_CONTROL_NOT_FOUND');
   }
-  if (!create) throw new Error('BLOCKED_STORY_UI_NOT_AVAILABLE');
-  await create.click(); await page.waitForTimeout(700);
-  const story = await firstVisible(page, SELECTORS.story);
-  if (!story) throw new Error('BLOCKED_STORY_UI_NOT_AVAILABLE');
-  await story.click(); await page.waitForTimeout(1200);
-  await page.screenshot({ path: 'tmp/screenshots/02-story-composer.png', fullPage: false });
+
+  await create.click();
+  await page.waitForTimeout(1200);
+
+  // Cari menu Story HANYA di desktop.
+  let story = await firstVisible(page, [
+    'text="Story"',
+    'text="Stories"',
+    '[aria-label="Story"]',
+    '[aria-label*="Story"]'
+  ]);
+
+  if (!story) {
+    // Tampilkan kontrol yang benar-benar terlihat supaya selector
+    // berikutnya bisa disesuaikan dengan UI Instagram aktual.
+    const controls = await page
+      .locator('button, a, [role="button"], [role="menuitem"]')
+      .evaluateAll(elements =>
+        elements
+          .filter(el => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              style.display !== 'none' &&
+              style.visibility !== 'hidden'
+            );
+          })
+          .slice(0, 200)
+          .map(el => ({
+            tag: el.tagName,
+            text: (el.innerText || '').trim().slice(0, 100),
+            aria: el.getAttribute('aria-label'),
+            role: el.getAttribute('role'),
+            href: el.getAttribute('href')
+          }))
+      );
+
+    console.log(
+      'VISIBLE_AFTER_CREATE',
+      JSON.stringify(controls, null, 2)
+    );
+
+    await page.screenshot({
+      path: 'tmp/screenshots/02-story-not-found.png',
+      fullPage: false
+    });
+
+    throw new Error('BLOCKED_STORY_UI_NOT_AVAILABLE');
+  }
+
+  await story.click();
+  await page.waitForTimeout(1200);
+
+  await page.screenshot({
+    path: 'tmp/screenshots/02-story-composer.png',
+    fullPage: false
+  });
+
   log('story_composer_opened');
 }
 
