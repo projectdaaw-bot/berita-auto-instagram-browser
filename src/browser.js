@@ -30,5 +30,4 @@ export async function openBrowser() {
 
 export async function closeBrowser(session) {
   if (session?.owned) await session.context.close();
-  else if (session?.browser) await session.browser.close();
 }
